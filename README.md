@@ -77,5 +77,27 @@ npm run dev
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
 
+## 闭合窗口明细导出（抽取数据导出包）
+
+窗口闭合后可把窗口范围、数据与校验信息打包成"抽取数据导出包"，交给字段契约做映射转换：
+
+- 包结构：清单头（窗口身份、窗口范围、行数、逐行校验值、数据校验值、关联契约版本）
+  + 逐行数据 + 封箱提交记录；缺清单头或提交记录的部分文件一律校验失败。
+- 数据版本化：闭合时以抽取产物初始化 v1 快照，更正生成 v2/v3…，历史版本不可变、可回查。
+- 断点续做：打包按块推进并写断点，中断后凭断点按锁定的数据版本快照续写，
+  并发更正不会串版，送去映射的数据与实际下载的记录逐行对应。
+- 映射入口凭包内窗口身份、数据校验值和契约版本生成转换结果，校验不通过的部分文件拒收。
+
+专用接口（`app/routers/window_export.py`）：
+
+| 方法与路径 | 说明 |
+| --- | --- |
+| `POST /api/extract_window/{id}/export` | 发起明细导出，生成新的导出包版本 |
+| `POST /api/extract_window/{id}/export/{seq}/resume` | 凭断点恢复中断的打包 |
+| `GET /api/extract_window/{id}/exports` | 列出全部已封箱导出包 |
+| `GET /api/extract_window/{id}/exports/{seq}` | 回查历史导出包（原版本可查）并重新校验 |
+| `POST /api/extract_window/{id}/corrections` | 更正闭合窗口数据行，生成新数据版本 |
+| `POST /api/field_contract/transform_package` | 映射入口：校验导出包并生成转换结果 |
+
 领域：数据工程
 子方向：数仓与数据湖
